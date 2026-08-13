@@ -8,3 +8,4 @@ chromadb
 pypdf
 rank-bm25
 streamlit
+langchain-text-splitters
