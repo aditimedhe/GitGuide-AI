@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.agent import run_agent
+from src.graph import ask_agent
 
 
 # --------------------------------------------------
@@ -153,7 +153,7 @@ if question:
 
             try:
 
-                result = run_agent(question)
+                result = ask_agent(question)
 
                 answer = result.get(
                     "answer",
