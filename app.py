@@ -4,7 +4,7 @@ from src.agent import run_agent
 
 
 # ============================================================
-# Page Configuration
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
@@ -16,30 +16,42 @@ st.set_page_config(
 
 
 # ============================================================
-# Custom CSS
+# CUSTOM CSS
 # ============================================================
 
 st.markdown(
     """
     <style>
 
+    /* Main title */
     .main-title {
         font-size: 42px;
         font-weight: 700;
-        margin-bottom: 5px;
+        margin-bottom: 0px;
     }
 
+    /* Subtitle */
     .subtitle {
-        font-size: 18px;
-        color: #666666;
+        font-size: 17px;
+        color: #6b7280;
         margin-bottom: 25px;
     }
 
-    .source-box {
-        padding: 12px;
+    /* Source box */
+    .source-item {
+        padding: 8px 12px;
+        margin-bottom: 6px;
         border-radius: 8px;
-        background-color: #f5f5f5;
-        margin-bottom: 8px;
+        background-color: #f4f4f5;
+        font-size: 14px;
+    }
+
+    /* Status box */
+    .status-box {
+        padding: 10px 14px;
+        border-radius: 8px;
+        background-color: #f4f4f5;
+        margin-bottom: 10px;
     }
 
     </style>
@@ -49,7 +61,7 @@ st.markdown(
 
 
 # ============================================================
-# Session State
+# SESSION STATE
 # ============================================================
 
 if "messages" not in st.session_state:
@@ -58,30 +70,44 @@ if "messages" not in st.session_state:
 
 
 # ============================================================
-# Sidebar
+# SIDEBAR
 # ============================================================
 
 with st.sidebar:
 
     st.title("📚 GitGuide AI")
 
+    st.caption(
+        "Agentic RAG Company Handbook Assistant"
+    )
+
+    st.divider()
+
+    st.subheader("About GitGuide AI")
+
+    st.write(
+        """
+        GitGuide AI uses an Agentic RAG pipeline to
+        answer questions from the provided company
+        handbook.
+        """
+    )
+
     st.markdown(
         """
-        ### About
+        **Pipeline**
 
-        GitGuide AI is an **Agentic RAG assistant**
-        that answers questions using the provided
-        company handbook.
-
-        It can:
-
-        - 🔎 Search the knowledge base
-        - 🧠 Rewrite difficult queries
-        - 📄 Retrieve relevant documents
-        - ✅ Check document relevance
-        - ✨ Generate grounded answers
-        - 🛡️ Validate generated answers
-        - 📚 Show document sources
+        🔎 Query Routing  
+        ↓  
+        📚 Document Retrieval  
+        ↓  
+        🧠 Relevance Grading  
+        ↓  
+        ✍️ Query Rewriting  
+        ↓  
+        📖 Grounded Answer  
+        ↓  
+        ✅ Answer Validation
         """
     )
 
@@ -90,14 +116,14 @@ with st.sidebar:
     st.subheader("Knowledge Base")
 
     st.write(
-        "GitGuide AI currently uses the documents "
-        "stored in the project's knowledge base."
+        "GitGuide AI searches the documents stored "
+        "in the project knowledge base."
     )
 
     st.divider()
 
     if st.button(
-        "🗑️ Clear Chat",
+        "🗑️ Clear Conversation",
         use_container_width=True
     ):
 
@@ -107,7 +133,7 @@ with st.sidebar:
 
 
 # ============================================================
-# Main Header
+# MAIN HEADER
 # ============================================================
 
 st.markdown(
@@ -118,7 +144,8 @@ st.markdown(
 st.markdown(
     """
     <div class="subtitle">
-    Your Agentic RAG assistant for the company handbook
+    Ask questions about the company handbook and
+    get answers grounded in the provided documents.
     </div>
     """,
     unsafe_allow_html=True,
@@ -126,39 +153,47 @@ st.markdown(
 
 
 # ============================================================
-# Welcome Message
+# WELCOME SCREEN
 # ============================================================
 
 if not st.session_state.messages:
 
     st.info(
-        "👋 Ask me anything about the information "
-        "contained in the GitGuide handbook."
+        "👋 Welcome to GitGuide AI! "
+        "Ask a question about the company handbook."
     )
 
-    st.markdown("### Example questions")
+    st.markdown(
+        "### 💡 Try asking"
+    )
 
     example_questions = [
         "What is the leave policy?",
-        "What should a new employee know about onboarding?",
+        "What should I know about onboarding?",
         "How does the promotion process work?",
         "What are the rules around time off?",
     ]
 
-    for question in example_questions:
+    columns = st.columns(2)
 
-        if st.button(
-            question,
-            use_container_width=True
-        ):
+    for index, example in enumerate(
+        example_questions
+    ):
 
-            st.session_state.pending_question = question
+        with columns[index % 2]:
 
-            st.rerun()
+            if st.button(
+                example,
+                use_container_width=True
+            ):
+
+                st.session_state.pending_question = example
+
+                st.rerun()
 
 
 # ============================================================
-# Display Chat History
+# DISPLAY CHAT HISTORY
 # ============================================================
 
 for message in st.session_state.messages:
@@ -171,9 +206,9 @@ for message in st.session_state.messages:
             message["content"]
         )
 
-        # ----------------------------------------------
-        # Display sources for assistant messages
-        # ----------------------------------------------
+        # ----------------------------------------------------
+        # Sources
+        # ----------------------------------------------------
 
         if (
             message["role"] == "assistant"
@@ -181,8 +216,10 @@ for message in st.session_state.messages:
         ):
 
             with st.expander(
-                "📚 Sources"
+                "📚 View Sources"
             ):
+
+                displayed_sources = set()
 
                 for source in message["sources"]:
 
@@ -195,22 +232,45 @@ for message in st.session_state.messages:
                         "page"
                     )
 
+                    source_key = (
+                        source_name,
+                        page
+                    )
+
+                    if source_key in displayed_sources:
+
+                        continue
+
+                    displayed_sources.add(
+                        source_key
+                    )
+
                     if page is not None:
 
                         st.markdown(
-                            f"- `{source_name}` "
-                            f"(Page {page})"
+                            f"""
+                            <div class="source-item">
+                            📄 <b>{source_name}</b>
+                            — Page {page}
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
                         )
 
                     else:
 
                         st.markdown(
-                            f"- `{source_name}`"
+                            f"""
+                            <div class="source-item">
+                            📄 <b>{source_name}</b>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
                         )
 
 
 # ============================================================
-# Get User Question
+# USER INPUT
 # ============================================================
 
 pending_question = st.session_state.pop(
@@ -219,7 +279,7 @@ pending_question = st.session_state.pop(
 )
 
 user_question = st.chat_input(
-    "Ask a question about the handbook..."
+    "Ask something about the handbook..."
 )
 
 question = (
@@ -230,14 +290,14 @@ question = (
 
 
 # ============================================================
-# Process Question
+# PROCESS QUESTION
 # ============================================================
 
 if question:
 
-    # ----------------------------------------------
-    # Display user question
-    # ----------------------------------------------
+    # --------------------------------------------------------
+    # Store user message
+    # --------------------------------------------------------
 
     st.session_state.messages.append(
         {
@@ -246,20 +306,35 @@ if question:
         }
     )
 
+    # --------------------------------------------------------
+    # Display user message
+    # --------------------------------------------------------
+
     with st.chat_message("user"):
 
         st.markdown(
             question
         )
 
-    # ----------------------------------------------
-    # Generate answer
-    # ----------------------------------------------
+    # --------------------------------------------------------
+    # Assistant response
+    # --------------------------------------------------------
 
     with st.chat_message("assistant"):
 
+        status_placeholder = st.empty()
+
+        status_placeholder.markdown(
+            """
+            <div class="status-box">
+            🔎 Searching the GitGuide knowledge base...
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         with st.spinner(
-            "🔎 Searching the handbook..."
+            "GitGuide AI is thinking..."
         ):
 
             try:
@@ -278,35 +353,39 @@ if question:
                     []
                 )
 
+                status_placeholder.empty()
+
             except Exception as error:
 
+                status_placeholder.empty()
+
                 answer = (
-                    "Sorry, something went wrong while "
-                    "processing your question."
+                    "I'm sorry, something went wrong "
+                    "while processing your question."
                 )
 
                 sources = []
 
                 st.error(
-                    f"Error: {error}"
+                    f"Technical error: {error}"
                 )
 
-        # ------------------------------------------
+        # ----------------------------------------------------
         # Display answer
-        # ------------------------------------------
+        # ----------------------------------------------------
 
         st.markdown(
             answer
         )
 
-        # ------------------------------------------
+        # ----------------------------------------------------
         # Display sources
-        # ------------------------------------------
+        # ----------------------------------------------------
 
         if sources:
 
             with st.expander(
-                "📚 Sources"
+                "📚 View Sources"
             ):
 
                 displayed_sources = set()
@@ -338,19 +417,19 @@ if question:
                     if page is not None:
 
                         st.markdown(
-                            f"- `{source_name}` "
+                            f"- 📄 `{source_name}` "
                             f"(Page {page})"
                         )
 
                     else:
 
                         st.markdown(
-                            f"- `{source_name}`"
+                            f"- 📄 `{source_name}`"
                         )
 
-    # ----------------------------------------------
+    # --------------------------------------------------------
     # Save assistant message
-    # ----------------------------------------------
+    # --------------------------------------------------------
 
     st.session_state.messages.append(
         {

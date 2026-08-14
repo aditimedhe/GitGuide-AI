@@ -31,15 +31,12 @@ def get_embedding_model():
 
 
 # --------------------------------------------------
-# Get existing ChromaDB
+# Get ChromaDB
 # --------------------------------------------------
 
 def get_vectorstore():
     """
-    Load the existing ChromaDB vector store.
-
-    If the database does not exist yet, it will
-    still create/load the collection.
+    Load the existing ChromaDB collection.
     """
 
     embeddings = get_embedding_model()
@@ -61,7 +58,7 @@ def add_documents_to_vectorstore(
     documents: List[Document]
 ):
     """
-    Add new document chunks to ChromaDB.
+    Add document chunks to ChromaDB.
     """
 
     if not documents:
@@ -92,26 +89,31 @@ def add_documents_to_vectorstore(
 
 
 # --------------------------------------------------
-# Delete documents by source
+# Delete chunks belonging to one document
 # --------------------------------------------------
 
 def delete_documents_by_source(
     source_path: str
 ):
     """
-    Delete all ChromaDB chunks belonging to
-    a particular source document.
-
-    This is required when a document is updated.
+    Delete all chunks belonging to a specific
+    source document.
     """
 
     vectorstore = get_vectorstore()
 
     collection = vectorstore._collection
 
+    source_path = str(
+        Path(source_path).resolve()
+    )
+
     print(
         f"\nDeleting old chunks for:"
-        f"\n{source_path}"
+    )
+
+    print(
+        source_path
     )
 
     try:
@@ -129,7 +131,7 @@ def delete_documents_by_source(
     except Exception as e:
 
         print(
-            f"Could not delete old chunks: {e}"
+            f"Error deleting old chunks: {e}"
         )
 
         raise
@@ -138,7 +140,7 @@ def delete_documents_by_source(
 
 
 # --------------------------------------------------
-# Update one document
+# Update document
 # --------------------------------------------------
 
 def update_document(
@@ -146,12 +148,7 @@ def update_document(
     source_path: str
 ):
     """
-    Replace all chunks belonging to one document.
-
-    Steps:
-
-    1. Delete old chunks.
-    2. Add new chunks.
+    Replace the chunks belonging to one document.
     """
 
     print(
@@ -162,10 +159,12 @@ def update_document(
         source_path
     )
 
+    # Delete old chunks
     delete_documents_by_source(
         source_path
     )
 
+    # Add new chunks
     vectorstore = add_documents_to_vectorstore(
         documents
     )
@@ -181,19 +180,14 @@ def create_vectorstore(
     documents: List[Document] = None
 ):
     """
-    Create or update the ChromaDB vector store.
+    Create or update ChromaDB.
 
     If documents are supplied, only those documents
     are added.
 
-    If no documents are supplied, this function
-    loads documents using the existing ingestion
-    pipeline.
+    If no documents are supplied, all documents are
+    loaded using the original ingestion pipeline.
     """
-
-    # ----------------------------------------------
-    # If documents were supplied
-    # ----------------------------------------------
 
     if documents:
 
@@ -206,15 +200,11 @@ def create_vectorstore(
         )
 
     # ----------------------------------------------
-    # Backward-compatible initial creation
+    # Backward compatibility
     # ----------------------------------------------
 
     print(
-        "\nNo documents supplied."
-    )
-
-    print(
-        "Loading documents using ingestion pipeline..."
+        "\nPreparing all documents..."
     )
 
     from src.ingestion import prepare_documents
@@ -231,12 +221,12 @@ def create_vectorstore(
 
 
 # --------------------------------------------------
-# Test
+# Similarity search test
 # --------------------------------------------------
 
 if __name__ == "__main__":
 
-    vectorstore = create_vectorstore()
+    vectorstore = get_vectorstore()
 
     print(
         "\nTesting similarity search..."
