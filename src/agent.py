@@ -5,87 +5,241 @@ from src.tools import search_handbook
 from src.generator import generate_answer
 
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+# ============================================================
+# OpenAI Client
+# ============================================================
+
+client = OpenAI(
+    api_key=OPENAI_API_KEY
+)
 
 
-def run_agent(question):
+# ============================================================
+# Model
+# ============================================================
+
+MODEL = "gpt-4o-mini"
+
+
+# ============================================================
+# STEP 1 — INITIAL QUESTION ROUTING
+# ============================================================
+
+def classify_question(question):
     """
-    Run the GitGuide AI Agent.
+    Decide whether the question could potentially
+    be answered using the GitGuide handbook.
 
-    The agent decides whether the user's question
-    should be answered using the handbook.
+    This is only an initial routing decision.
+
+    The actual document relevance is checked later
+    by agentic_retriever.py.
     """
 
-    decision_prompt = f"""
-You are GitGuide AI, an assistant that answers questions
-using a specific company handbook.
+    prompt = f"""
+You are the initial routing component of GitGuide AI.
+
+GitGuide AI answers questions using a company
+handbook containing information about topics such as:
+
+- leave and time off
+- probation
+- onboarding
+- career development
+- feedback
+- employee policies
+- workplace guidelines
+- people operations
+- learning and development
+- company programs
+- compliance
+- employment-related information
 
 User question:
 
 {question}
 
-Your job is to decide whether this question should be
-answered using the company handbook.
+Determine whether this question could reasonably
+be related to information contained in a company
+handbook.
 
-Return ONLY one of these:
+Important:
+
+A question does NOT need to use the exact wording
+from the handbook.
+
+If the question could potentially be answered using
+the handbook, return:
+
+SEARCH
+
+If the question is clearly unrelated to the handbook,
+return:
+
+OUT_OF_SCOPE
+
+Return ONLY:
 
 SEARCH
 
 or
 
 OUT_OF_SCOPE
-
-SEARCH means the question may be answerable from the handbook.
-
-OUT_OF_SCOPE means the question is clearly unrelated
-to the handbook.
 """
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL,
+
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "You are a strict routing agent "
-                    "for a document-based assistant."
+                    "You are a routing component for a "
+                    "document-based knowledge assistant."
                 ),
             },
             {
                 "role": "user",
-                "content": decision_prompt,
+                "content": prompt,
             },
         ],
+
         temperature=0,
     )
 
-    decision = response.choices[0].message.content.strip().upper()
+    decision = (
+        response.choices[0]
+        .message.content
+        .strip()
+        .upper()
+    )
+
+    if "SEARCH" in decision:
+        return "SEARCH"
+
+    return "OUT_OF_SCOPE"
+
+
+# ============================================================
+# STEP 2 — RUN GITGUIDE AGENT
+# ============================================================
+
+def run_agent(question):
+    """
+    Run the complete GitGuide AI Agent.
+
+    Workflow:
+
+    User Question
+          ↓
+    Initial Routing
+          ↓
+       SEARCH?
+       /     \
+     NO       YES
+     ↓         ↓
+    Polite   Agentic Retrieval
+    Reply        ↓
+              ChromaDB
+                ↓
+          Relevance Grading
+                ↓
+          Query Rewriting
+                ↓
+           Relevant Docs
+                ↓
+          Answer Generator
+                ↓
+             Answer
+    """
+
+    # --------------------------------------------------------
+    # Validate question
+    # --------------------------------------------------------
+
+    if not question or not question.strip():
+
+        return {
+            "answer": (
+                "Please enter a question about the "
+                "GitGuide handbook."
+            ),
+            "sources": [],
+        }
+
+    question = question.strip()
+
+    print("\n" + "=" * 70)
+    print("GITGUIDE AI AGENT")
+    print("=" * 70)
+
+    print(f"\nUser question:")
+    print(question)
+
+    # --------------------------------------------------------
+    # Initial routing
+    # --------------------------------------------------------
+
+    print("\nStep 1: Classifying question...")
+
+    decision = classify_question(
+        question
+    )
+
+    print(
+        f"Routing decision: {decision}"
+    )
+
+    # --------------------------------------------------------
+    # OUT OF SCOPE
+    # --------------------------------------------------------
 
     if decision == "OUT_OF_SCOPE":
 
         return {
             "answer": (
-                "I'm sorry, but this question is outside "
-                "the scope of the provided handbook."
+                "I'm sorry, but this question appears "
+                "to be outside the scope of the provided "
+                "GitGuide handbook."
             ),
             "sources": [],
         }
 
-    # Search the knowledge base
-    search_result = search_handbook(question)
+    # --------------------------------------------------------
+    # SEARCH HANDBOOK
+    # --------------------------------------------------------
+
+    print(
+        "\nStep 2: Searching the handbook..."
+    )
+
+    search_result = search_handbook(
+        question
+    )
+
+    # --------------------------------------------------------
+    # NO RELEVANT INFORMATION
+    # --------------------------------------------------------
 
     if not search_result["found"]:
 
         return {
             "answer": (
                 "I'm sorry, but I couldn't find enough "
-                "information about this in the provided "
-                "documents."
+                "relevant information about this in the "
+                "provided GitGuide documents."
             ),
             "sources": [],
         }
 
-    # Generate answer only from retrieved documents
+    # --------------------------------------------------------
+    # GENERATE ANSWER
+    # --------------------------------------------------------
+
+    print(
+        "\nStep 3: Generating grounded answer..."
+    )
+
     result = generate_answer(
         question,
         search_result["documents"],
@@ -94,40 +248,79 @@ to the handbook.
     return result
 
 
+# ============================================================
+# COMMAND LINE TEST
+# ============================================================
+
 if __name__ == "__main__":
-
-    question = input(
-        "\nAsk GitGuide AI: "
-    )
-
-    result = run_agent(question)
 
     print("\n" + "=" * 70)
     print("GITGUIDE AI")
     print("=" * 70)
 
-    print("\nANSWER:")
-    print(result["answer"])
+    question = input(
+        "\nAsk GitGuide AI: "
+    )
 
-    print("\nSOURCES:")
+    result = run_agent(
+        question
+    )
+
+    print("\n" + "=" * 70)
+    print("FINAL ANSWER")
+    print("=" * 70)
+
+    print(
+        result["answer"]
+    )
+
+    print("\n" + "=" * 70)
+    print("SOURCES")
+    print("=" * 70)
 
     if result["sources"]:
 
+        # Avoid displaying duplicate sources
+        displayed_sources = set()
+
         for source in result["sources"]:
 
-            if source["page"] is not None:
+            source_name = source.get(
+                "source",
+                "Unknown source"
+            )
+
+            page = source.get(
+                "page"
+            )
+
+            source_key = (
+                source_name,
+                page
+            )
+
+            if source_key in displayed_sources:
+                continue
+
+            displayed_sources.add(
+                source_key
+            )
+
+            if page is not None:
 
                 print(
-                    f"- {source['source']} "
-                    f"(Page {source['page']})"
+                    f"- {source_name} "
+                    f"(Page {page})"
                 )
 
             else:
 
                 print(
-                    f"- {source['source']}"
+                    f"- {source_name}"
                 )
 
     else:
 
-        print("No sources available.")
+        print(
+            "No sources available."
+        )

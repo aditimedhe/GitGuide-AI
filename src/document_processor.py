@@ -6,7 +6,14 @@ from src.document_tracker import (
     get_document_status,
 )
 
-from src.vectorstore import create_vectorstore
+from src.ingestion import (
+    prepare_single_document
+)
+
+from src.vectorstore import (
+    add_documents_to_vectorstore,
+    update_document,
+)
 
 
 # --------------------------------------------------
@@ -21,13 +28,10 @@ MARKDOWN_DIR = PROJECT_ROOT / "data" / "markdown"
 
 
 # --------------------------------------------------
-# Get documents
+# Find documents
 # --------------------------------------------------
 
 def get_document_files():
-    """
-    Find all PDF and Markdown documents.
-    """
 
     files = []
 
@@ -51,86 +55,142 @@ def get_document_files():
 
 
 # --------------------------------------------------
-# Find new or changed documents
+# Process one document
 # --------------------------------------------------
 
-def get_documents_to_process():
-    """
-    Return only documents that are new or changed.
-    """
+def process_single_document(
+    file_path
+):
 
-    files = get_document_files()
+    file_path = Path(
+        file_path
+    ).resolve()
 
-    documents_to_process = []
+    status = get_document_status(
+        file_path
+    )
 
-    for file in files:
+    # ----------------------------------------------
+    # New document
+    # ----------------------------------------------
 
-        if needs_processing(file):
-
-            documents_to_process.append(file)
-
-    return documents_to_process
-
-
-# --------------------------------------------------
-# Show status
-# --------------------------------------------------
-
-def show_document_status():
-    """
-    Display processing status of every document.
-    """
-
-    files = get_document_files()
-
-    print("\n" + "=" * 70)
-    print("DOCUMENT STATUS")
-    print("=" * 70)
-
-    if not files:
+    if not status["processed"]:
 
         print(
-            "\nNo documents found."
+            "\n" + "-" * 60
         )
-
-        return
-
-    for file in files:
-
-        status = get_document_status(
-            file
-        )
-
-        if not status["processed"]:
-
-            label = "🆕 NEW"
-
-        elif status["changed"]:
-
-            label = "🔄 CHANGED"
-
-        else:
-
-            label = "✅ PROCESSED"
 
         print(
-            f"{label}  {file.name}"
+            "🆕 NEW DOCUMENT"
         )
+
+        print(
+            file_path.name
+        )
+
+        print(
+            "-" * 60
+        )
+
+        chunks = prepare_single_document(
+            file_path
+        )
+
+        print(
+            f"Created {len(chunks)} chunks."
+        )
+
+        add_documents_to_vectorstore(
+            chunks
+        )
+
+        mark_as_processed(
+            file_path
+        )
+
+        print(
+            f"\n✅ Added: {file_path.name}"
+        )
+
+        return "added"
+
+    # ----------------------------------------------
+    # Changed document
+    # ----------------------------------------------
+
+    if status["changed"]:
+
+        print(
+            "\n" + "-" * 60
+        )
+
+        print(
+            "🔄 CHANGED DOCUMENT"
+        )
+
+        print(
+            file_path.name
+        )
+
+        print(
+            "-" * 60
+        )
+
+        chunks = prepare_single_document(
+            file_path
+        )
+
+        print(
+            f"Created {len(chunks)} new chunks."
+        )
+
+        update_document(
+            chunks,
+            str(file_path)
+        )
+
+        mark_as_processed(
+            file_path
+        )
+
+        print(
+            f"\n✅ Updated: {file_path.name}"
+        )
+
+        return "updated"
+
+    # ----------------------------------------------
+    # Unchanged
+    # ----------------------------------------------
+
+    print(
+        f"\n⏭️ SKIPPED: {file_path.name}"
+    )
+
+    print(
+        "   No changes detected."
+    )
+
+    return "skipped"
 
 
 # --------------------------------------------------
-# Process documents
+# Process all documents
 # --------------------------------------------------
 
 def process_documents():
-    """
-    Detect new/changed documents and process
-    the knowledge base.
-    """
 
-    print("\n" + "=" * 70)
-    print("GITGUIDE AI - INCREMENTAL DOCUMENT PROCESSOR")
-    print("=" * 70)
+    print(
+        "\n" + "=" * 70
+    )
+
+    print(
+        "GITGUIDE AI - INCREMENTAL INGESTION"
+    )
+
+    print(
+        "=" * 70
+    )
 
     files = get_document_files()
 
@@ -148,124 +208,69 @@ def process_documents():
             f"Markdown folder: {MARKDOWN_DIR}"
         )
 
-        return None
+        return
 
     print(
-        f"\n📚 Total documents found: {len(files)}"
+        f"\n📚 Total documents: {len(files)}"
     )
 
-    # ----------------------------------------------
-    # Determine what needs processing
-    # ----------------------------------------------
-
-    documents_to_process = (
-        get_documents_to_process()
-    )
-
-    print(
-        f"\n🆕 New/changed documents: "
-        f"{len(documents_to_process)}"
-    )
+    added = 0
+    updated = 0
+    skipped = 0
 
     # ----------------------------------------------
-    # Nothing to process
+    # Process every file
     # ----------------------------------------------
 
-    if not documents_to_process:
+    for file_path in files:
 
-        print(
-            "\n✅ Knowledge base is already up to date."
+        result = process_single_document(
+            file_path
         )
 
-        print(
-            "\nNo embeddings need to be created."
-        )
+        if result == "added":
 
-        return None
+            added += 1
 
-    # ----------------------------------------------
-    # Display documents
-    # ----------------------------------------------
+        elif result == "updated":
 
-    print(
-        "\nDocuments that require processing:"
-    )
+            updated += 1
 
-    for file in documents_to_process:
+        elif result == "skipped":
 
-        print(
-            f"   📄 {file.name}"
-        )
+            skipped += 1
 
     # ----------------------------------------------
-    # Current limitation
+    # Summary
     # ----------------------------------------------
 
     print(
-        "\n⚠️ Processing new documents..."
+        "\n" + "=" * 70
     )
 
     print(
-        "The current vectorstore implementation "
-        "rebuilds the collection."
+        "KNOWLEDGE BASE UPDATE COMPLETE"
     )
 
     print(
-        "Incremental Chroma insertion will be "
-        "implemented in the next step."
+        "=" * 70
     )
-
-    # ----------------------------------------------
-    # Run existing vectorstore pipeline
-    # ----------------------------------------------
-
-    try:
-
-        vectorstore = create_vectorstore()
-
-    except Exception as e:
-
-        print(
-            "\n❌ Vector database update failed."
-        )
-
-        print(
-            f"\nError: {e}"
-        )
-
-        raise
-
-    # ----------------------------------------------
-    # Mark documents as processed
-    # ----------------------------------------------
-
-    for file in documents_to_process:
-
-        mark_as_processed(
-            file
-        )
-
-    # ----------------------------------------------
-    # Success
-    # ----------------------------------------------
-
-    print("\n" + "=" * 70)
-    print(
-        "✅ DOCUMENT PROCESSING COMPLETE"
-    )
-    print("=" * 70)
 
     print(
-        "\nProcessed documents:"
+        f"\n🆕 Added:   {added}"
     )
 
-    for file in documents_to_process:
+    print(
+        f"🔄 Updated: {updated}"
+    )
 
-        print(
-            f"   ✅ {file.name}"
-        )
+    print(
+        f"⏭️ Skipped:  {skipped}"
+    )
 
-    return vectorstore
+    print(
+        "\nChromaDB is ready."
+    )
 
 
 # --------------------------------------------------
@@ -273,7 +278,5 @@ def process_documents():
 # --------------------------------------------------
 
 if __name__ == "__main__":
-
-    show_document_status()
 
     process_documents()

@@ -18,6 +18,7 @@ def create_embeddings():
 
 
 if __name__ == "__main__":
+
     embeddings = create_embeddings()
 
     test_text = "What is the leave policy?"
